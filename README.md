@@ -1,0 +1,2 @@
+# AndroidWidgetSample
+Android widget sample.

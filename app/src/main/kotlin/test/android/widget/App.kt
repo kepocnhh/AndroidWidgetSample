@@ -21,10 +21,7 @@ internal class App : Application() {
 //                file.delete() // todo
                 if (!file.exists()) {
                     val bitmap = BitmapFactory.decodeStream(stream)
-//                    file.writeBytes(compress(bitmap = bitmap, quality = 0))
                     file.writeBytes(compress(bitmap = bitmap, quality = 10))
-//                    file.writeBytes(compress(bitmap = bitmap, quality = 64))
-//                    file.writeBytes(compress(bitmap = bitmap, quality = 100))
                 }
             }
         }

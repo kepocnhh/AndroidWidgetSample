@@ -1,9 +1,6 @@
 package test.android.widget
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
@@ -17,10 +14,23 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.FileProvider
-import androidx.core.net.toFile
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.flowWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 internal class MainActivity : AppCompatActivity() {
+    private var imgView: ImageView? = null
+    private var textView: TextView? = null
+
+    private fun render(imgIndex: Int) {
+        val imgView = checkNotNull(imgView)
+        val textView = checkNotNull(textView)
+        imgView.setImageDrawable(Drawable.createFromStream(assets.open("img_$imgIndex.jpg"), null))
+        textView.text = "img: $imgIndex"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val context: Context = this
@@ -39,7 +49,7 @@ internal class MainActivity : AppCompatActivity() {
             )
             view.orientation = LinearLayout.VERTICAL
             view.gravity = Gravity.CENTER_HORIZONTAL
-            val imgView = ImageView(context).also {
+            ImageView(context).also {
                 it.layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     TypedValue.applyDimension(
@@ -50,9 +60,10 @@ internal class MainActivity : AppCompatActivity() {
                 )
                 val imgIndex = App.injection.locals.imgIndex
                 it.setImageDrawable(Drawable.createFromStream(assets.open("img_$imgIndex.jpg"), null))
+                imgView = it
                 view.addView(it)
             }
-            val textView = TextView(context).also {
+            TextView(context).also {
                 it.layoutParams = FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -60,6 +71,7 @@ internal class MainActivity : AppCompatActivity() {
                 val imgIndex = App.injection.locals.imgIndex
                 it.text = "img: $imgIndex"
                 it.setTextColor(Color.BLACK)
+                textView = it
                 view.addView(it)
             }
             Button(context).also {
@@ -69,30 +81,26 @@ internal class MainActivity : AppCompatActivity() {
                 )
                 it.text = "click"
                 it.setOnClickListener { _ ->
-                    val imgIndex = App.injection.locals.imgIndex.plus(1) % 4
-                    App.injection.locals.imgIndex = imgIndex
-                    imgView.setImageDrawable(Drawable.createFromStream(assets.open("img_$imgIndex.jpg"), null))
-//                    imgView.setImageDrawable(Drawable.createFromPath(context.cacheDir.resolve("img_${imgIndex}_tiny.jpg").absolutePath))
-//                    val uri = FileProvider.getUriForFile(
-//                        context,
-//                        "${context.packageName}.provider",
-//                        context.cacheDir.resolve("img_${imgIndex}_tiny.jpg"),
-//                    )
-//                    imgView.setImageURI(uri)
-                    textView.text = "img: $imgIndex"
-                    val intent = Intent(context, WidgetProvider::class.java)
-                    intent.action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
-//                    val awm = AppWidgetManager.getInstance(context)
-//                    val ids = awm.getAppWidgetIds(ComponentName(context, WidgetProvider::class.java))
-//                    intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids)
-                    intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, intArrayOf(0))
-//                    intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, ComponentName(context, WidgetProvider::class.java))
-                    sendBroadcast(intent)
+                    Bus.click(context = context)
                 }
                 view.addView(it)
             }
             root.addView(view)
         }
         setContentView(root)
+        Bus.events
+            .flowWithLifecycle(lifecycle, minActiveState = Lifecycle.State.CREATED)
+            .onEach { event ->
+                when (event) {
+                    Bus.Event.Update -> {
+                        render(imgIndex = App.injection.locals.imgIndex)
+                    }
+                }
+            }
+            .launchIn(lifecycleScope)
+    }
+
+    companion object {
+        private val logger = App.injection.loggers.create("[MainActivity]")
     }
 }
